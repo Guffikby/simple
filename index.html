@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Simple. ГДЗ</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card-bg: #ffffff;
+      --text-main: #1c1e21;
+      --text-muted: #8a8d91;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --border: #e5e7eb;
+      --radius: 14px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0 auto;
+      padding: 12px;
+      max-width: 600px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .brand-header {
+      background: var(--card-bg);
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      margin-bottom: 14px;
+    }
+
+    .brand-logo {
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-logo span { color: var(--accent); }
+
+    .brand-tag {
+      font-size: 11px;
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 4px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .book-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .book-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+
+    .book-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .year-badge {
+      background: #f1f5f9;
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .book-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .task-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .task-info {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .btn-toggle {
+      background: var(--accent-light);
+      color: var(--accent);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    .answer-box {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .answer-box.show { display: block; }
+
+    .answer-img {
+      width: 100%;
+      border-radius: 8px;
+      margin-top: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .answer-text {
+      font-size: 13px;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 20px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand-header">
+    <div class="brand-logo">Simple. <span>ГДЗ</span></div>
+    <div class="brand-tag">Решебник</div>
+  </div>
+
+  <div id="app-content">Загрузка...</div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    async function loadData() {
+      const container = document.getElementById('app-content');
+      try {
+        const res = await fetch('/api/data');
+        const books = await res.json();
+        container.innerHTML = '';
+
+        if (!books.length) {
+          container.innerHTML = '<div class="book-card empty-state">Учебников пока нет</div>';
+          return;
+        }
+
+        books.forEach(book => {
+          let tasksHtml = '';
+          if (book.tasks && book.tasks.length) {
+            book.tasks.forEach(task => {
+              const photoTag = task.photo_url ? `<img class="answer-img" src="${task.photo_url}" loading="lazy" />` : '';
+              const textTag = task.answer_text ? `<div class="answer-text">${task.answer_text}</div>` : '';
+              
+              tasksHtml += `
+                <div class="task-item">
+                  <div class="task-info">
+                    <span>${task.topic}</span>
+                    <span>${task.task_number}</span>
+                  </div>
+                  <button class="btn-toggle" onclick="toggle(${task.id})">📸 Показать решение</button>
+                  <div class="answer-box" id="ans-${task.id}">
+                    ${textTag}
+                    ${photoTag}
+                  </div>
+                </div>
+              `;
+            });
+          } else {
+            tasksHtml = '<div class="empty-state">Решений пока нет</div>';
+          }
+
+          const card = document.createElement('div');
+          card.className = 'book-card';
+          card.innerHTML = `
+            <div class="book-header">
+              <div class="book-title">${book.title}</div>
+              <div class="year-badge">${book.year} г.</div>
+            </div>
+            <div class="book-meta">${book.subject} • ${book.grade}</div>
+            ${tasksHtml}
+          `;
+          container.appendChild(card);
+        });
+      } catch (e) {
+        container.innerHTML = '<div class="book-card empty-state">Ошибка загрузки.</div>';
+      }
+    }
+
+    function toggle(id) {
+      const el = document.getElementById(`ans-${id}`);
+      if (el) el.classList.toggle('show');
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

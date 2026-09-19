@@ -24,35 +24,45 @@
             box-sizing: border-box;
         }
 
-        h1, h2 {
-            margin: 10px 0;
-            font-size: 20px;
+        h2 { 
+            margin: 10px 0; 
+            font-size: 20px; 
         }
 
         .book-card {
             background-color: var(--card-bg);
             border-radius: 12px;
             padding: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }
 
-        .book-title {
-            font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 4px;
+        .book-title { 
+            font-weight: bold; 
+            font-size: 17px; 
+            margin-bottom: 2px; 
         }
 
-        .book-subtitle {
+        .book-subtitle { 
+            font-size: 13px; 
+            color: var(--hint-color); 
+            margin-bottom: 12px; 
+        }
+
+        .section-title {
             font-size: 13px;
-            color: var(--hint-color);
-            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--button-bg);
+            margin: 12px 0 6px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .tasks-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+            gap: 6px;
+            margin-bottom: 8px;
         }
 
         .task-btn {
@@ -67,7 +77,6 @@
             text-align: center;
         }
 
-        /* Modal Overlay */
         .modal {
             display: none;
             position: fixed;
@@ -104,10 +113,10 @@
             color: var(--hint-color);
         }
 
-        .loader {
-            text-align: center;
-            padding: 40px;
-            color: var(--hint-color);
+        .loader { 
+            text-align: center; 
+            padding: 40px; 
+            color: var(--hint-color); 
         }
     </style>
 </head>
@@ -118,7 +127,6 @@
         <div class="loader">Загрузка решений...</div>
     </div>
 
-    <!-- Модалка просмотра решения -->
     <div id="solutionModal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
@@ -132,14 +140,11 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // ⚙️ УКАЖИ СЮДА ССЫЛКУ НА СВОЙ СЕРВЕР ИЛИ ТУННЕЛЬ
-        // Пример для localtunnel: "https://abcdef.loca.lt"
-        // Пример для ngrok: "https://1234-56-78.ngrok-free.app"
-        const BACKEND_URL = "https://pcuxw-46-53-180-182.run.pinggy-f/";
+        // ⚙️ УКАЖИ ССЫЛКУ НА СВОЙ СЕРВЕР ИЛИ ТУННЕЛЬ
+        const BACKEND_URL = "https://твой-адрес-из-pinggy.pinggy.link";
 
         async function loadData() {
             try {
-                // Если BACKEND_URL не настроен, используем относительный путь
                 const baseUrl = BACKEND_URL.startsWith("http") ? BACKEND_URL : "";
                 const response = await fetch(`${baseUrl}/api/data`);
                 const books = await response.json();
@@ -156,14 +161,29 @@
                     card.className = 'book-card';
 
                     let tasksHtml = '';
+
                     if (book.tasks && book.tasks.length > 0) {
-                        tasksHtml = '<div class="tasks-grid">';
+                        // Группируем задания по ЛЮБОМУ типу, введённому админом
+                        const grouped = {};
                         book.tasks.forEach(t => {
-                            const title = `${t.topic} — ${t.task_number}`;
-                            const photoUrl = `${baseUrl}${t.photo_url}`;
-                            tasksHtml += `<button class="task-btn" onclick="openSolution('${photoUrl}', '${title}', '${t.answer_text}')">${t.task_number}</button>`;
+                            const typeName = t.task_type || 'Задания';
+                            if (!grouped[typeName]) grouped[typeName] = [];
+                            grouped[typeName].push(t);
                         });
-                        tasksHtml += '</div>';
+
+                        // Выводим сгенерированные категории
+                        for (const [typeTitle, tasks] of Object.entries(grouped)) {
+                            tasksHtml += `<div class="section-title">📌 ${typeTitle}</div>`;
+                            tasksHtml += '<div class="tasks-grid">';
+                            
+                            tasks.forEach(t => {
+                                const title = `${t.topic} — ${t.task_number} (${typeTitle})`;
+                                const photoUrl = `${baseUrl}${t.photo_url}`;
+                                tasksHtml += `<button class="task-btn" onclick="openSolution('${photoUrl}', '${title}', '${t.answer_text}')">${t.task_number}</button>`;
+                            });
+
+                            tasksHtml += '</div>';
+                        }
                     } else {
                         tasksHtml = '<div style="font-size: 12px; color: var(--hint-color);">Нет загруженных номеров</div>';
                     }
@@ -176,7 +196,7 @@
                     container.appendChild(card);
                 });
             } catch (err) {
-                document.getElementById('content').innerHTML = '<div class="loader">Ошибка загрузки данных.<br>Проверь, запущен ли бэкенд и туннель.</div>';
+                document.getElementById('content').innerHTML = '<div class="loader">Ошибка загрузки данных.<br>Проверь соединение с сервером.</div>';
             }
         }
 

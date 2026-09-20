@@ -232,33 +232,59 @@
             container.innerHTML = html;
         }
 
-        function openSubject(idx) {
-            currentSubject = catalogData[idx];
-            document.getElementById('backBtn').style.display = 'block';
-            document.getElementById('viewTitle').innerText = currentSubject.title;
+        function openBook(bIdx) {
+    currentBook = currentSubject.books[bIdx];
+    document.getElementById('backBtn').style.display = 'block';
+    document.getElementById('viewTitle').innerText = currentBook.title;
 
-            const container = document.getElementById('content');
-            if (!currentSubject.books || currentSubject.books.length === 0) {
-                container.innerHTML = '<div class="loader">Учебники не найдены</div>';
-                return;
+    const container = document.getElementById('content');
+    if (!currentBook.tasks || currentBook.tasks.length === 0) {
+        container.innerHTML = '<div class="loader">Решений пока нет</div>';
+        return;
+    }
+
+    // Полное построение дерева: Глава -> Параграф -> Категория -> Задания
+    const tree = {};
+    currentBook.tasks.forEach(t => {
+        const ch = t.chapter || 'Раздел';
+        const p = t.paragraph || 'Параграф';
+        const cat = t.category || 'Задания';
+
+        if (!tree[ch]) tree[ch] = {};
+        if (!tree[ch][p]) tree[ch][p] = {};
+        if (!tree[ch][p][cat]) tree[ch][p][cat] = [];
+
+        tree[ch][p][cat].push(t);
+    });
+
+    let html = '';
+    for (const [chName, paragraphs] of Object.entries(tree)) {
+        html += `<div class="chapter-block">`;
+        html += `<div class="chapter-title">📖 ${chName}</div>`;
+
+        for (const [pName, categories] of Object.entries(paragraphs)) {
+            // Выводим Параграф (например: § 1.2)
+            html += `<div class="paragraph-title">📑 ${pName}</div>`;
+
+            for (const [catName, tasks] of Object.entries(categories)) {
+                // Выводим Категорию (например: Вопросы, Упражнения)
+                html += `<div class="category-title">📌 ${catName}</div>`;
+                html += '<div class="tasks-grid">';
+                
+                tasks.forEach(t => {
+                    const title = `${pName} • ${catName} • ${t.task_number}`;
+                    const imgUrl = `${BACKEND_URL}${t.photo_url}`;
+                    html += `<button class="task-btn" onclick="openSolution('${imgUrl}', '${title}', '${t.answer_text}')">${t.task_number}</button>`;
+                });
+
+                html += '</div>';
             }
-
-            let html = '<div class="books-list">';
-            currentSubject.books.forEach((b, bIdx) => {
-                const cover = b.cover_url ? `${BACKEND_URL}${b.cover_url}` : 'https://via.placeholder.com/60x80?text=Обложка';
-                html += `
-                    <div class="book-item" onclick="openBook(${bIdx})">
-                        <img class="book-cover" src="${cover}" alt="Обложка">
-                        <div class="book-info">
-                            <div class="book-title">${b.title}</div>
-                            <div class="book-sub">${b.grade} • ${b.year}г.</div>
-                        </div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
         }
+        html += `</div>`;
+    }
+
+    container.innerHTML = html;
+}
 
         function openBook(bIdx) {
             currentBook = currentSubject.books[bIdx];

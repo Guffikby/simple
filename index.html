@@ -24,43 +24,98 @@
             box-sizing: border-box;
         }
 
-        h2 { 
-            margin: 10px 0; 
-            font-size: 20px; 
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
-        .book-card {
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--button-bg);
+            display: none;
+            padding: 0;
+        }
+
+        h2 { margin: 0; font-size: 20px; }
+
+        /* Сетка предметов */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .subject-card {
             background-color: var(--card-bg);
             border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 14px;
+            padding: 16px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
         }
 
-        .book-title { 
-            font-weight: bold; 
-            font-size: 17px; 
-            margin-bottom: 2px; 
+        /* Список учебников */
+        .books-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        .book-subtitle { 
-            font-size: 13px; 
-            color: var(--hint-color); 
-            margin-bottom: 12px; 
+        .book-item {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
         }
 
-        .section-title {
+        .book-cover {
+            width: 60px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 6px;
+            background-color: #eee;
+        }
+
+        .book-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .book-title { font-weight: bold; font-size: 16px; }
+        .book-sub { font-size: 13px; color: var(--hint-color); margin-top: 4px; }
+
+        /* Иерархия упражнений */
+        .chapter-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--button-bg);
+            margin: 16px 0 8px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            padding-bottom: 4px;
+        }
+
+        .type-title {
             font-size: 13px;
             font-weight: 600;
-            color: var(--button-bg);
-            margin: 12px 0 6px 0;
+            color: var(--hint-color);
+            margin: 8px 0 4px 0;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .tasks-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
             gap: 6px;
             margin-bottom: 8px;
         }
@@ -77,6 +132,7 @@
             text-align: center;
         }
 
+        /* Модалка */
         .modal {
             display: none;
             position: fixed;
@@ -113,18 +169,18 @@
             color: var(--hint-color);
         }
 
-        .loader { 
-            text-align: center; 
-            padding: 40px; 
-            color: var(--hint-color); 
-        }
+        .loader { text-align: center; padding: 40px; color: var(--hint-color); }
     </style>
 </head>
 <body>
 
-    <h2>📚 Simple. ГДЗ</h2>
+    <div class="header">
+        <button id="backBtn" class="back-btn" onclick="goBack()">⬅️</button>
+        <h2 id="viewTitle">📚 Выберите предмет</h2>
+    </div>
+
     <div id="content">
-        <div class="loader">Загрузка решений...</div>
+        <div class="loader">Загрузка предметов...</div>
     </div>
 
     <div id="solutionModal" class="modal">
@@ -140,63 +196,115 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // ⚙️ УКАЖИ ССЫЛКУ НА СВОЙ СЕРВЕР ИЛИ ТУННЕЛЬ
-        const BACKEND_URL = "https://simplegdzby.onrender.com";
+        const BACKEND_URL = "https://simple-gdz-bot.onrender.com";
 
-        async function loadData() {
+        let catalogData = [];
+        let currentSubject = null;
+        let currentBook = null;
+
+        async function init() {
             try {
-                const baseUrl = BACKEND_URL.startsWith("http") ? BACKEND_URL : "";
-                const response = await fetch(`${baseUrl}/api/data`);
-                const books = await response.json();
-                const container = document.getElementById('content');
-                container.innerHTML = '';
-
-                if (books.length === 0) {
-                    container.innerHTML = '<div class="loader">Решений пока нет</div>';
-                    return;
-                }
-
-                books.forEach(book => {
-                    const card = document.createElement('div');
-                    card.className = 'book-card';
-
-                    let tasksHtml = '';
-
-                    if (book.tasks && book.tasks.length > 0) {
-                        // Группируем задания по ЛЮБОМУ типу, введённому админом
-                        const grouped = {};
-                        book.tasks.forEach(t => {
-                            const typeName = t.task_type || 'Задания';
-                            if (!grouped[typeName]) grouped[typeName] = [];
-                            grouped[typeName].push(t);
-                        });
-
-                        // Выводим сгенерированные категории
-                        for (const [typeTitle, tasks] of Object.entries(grouped)) {
-                            tasksHtml += `<div class="section-title">📌 ${typeTitle}</div>`;
-                            tasksHtml += '<div class="tasks-grid">';
-                            
-                            tasks.forEach(t => {
-                                const title = `${t.topic} — ${t.task_number} (${typeTitle})`;
-                                const photoUrl = `${baseUrl}${t.photo_url}`;
-                                tasksHtml += `<button class="task-btn" onclick="openSolution('${photoUrl}', '${title}', '${t.answer_text}')">${t.task_number}</button>`;
-                            });
-
-                            tasksHtml += '</div>';
-                        }
-                    } else {
-                        tasksHtml = '<div style="font-size: 12px; color: var(--hint-color);">Нет загруженных номеров</div>';
-                    }
-
-                    card.innerHTML = `
-                        <div class="book-title">${book.title}</div>
-                        <div class="book-subtitle">${book.subject} • ${book.grade} (${book.year}г.)</div>
-                        ${tasksHtml}
-                    `;
-                    container.appendChild(card);
-                });
+                const response = await fetch(`${BACKEND_URL}/api/data`);
+                catalogData = await response.json();
+                renderSubjects();
             } catch (err) {
-                document.getElementById('content').innerHTML = '<div class="loader">Ошибка загрузки данных.<br>Проверь соединение с сервером.</div>';
+                document.getElementById('content').innerHTML = '<div class="loader">Ошибка загрузки данных.</div>';
+            }
+        }
+
+        function renderSubjects() {
+            currentSubject = null;
+            currentBook = null;
+            document.getElementById('backBtn').style.display = 'none';
+            document.getElementById('viewTitle').innerText = '📚 Выберите предмет';
+
+            const container = document.getElementById('content');
+            if (catalogData.length === 0) {
+                container.innerHTML = '<div class="loader">Предметы не найдены</div>';
+                return;
+            }
+
+            let html = '<div class="grid-container">';
+            catalogData.forEach((s, idx) => {
+                html += `<div class="subject-card" onclick="openSubject(${idx})">📐 ${s.title}</div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function openSubject(idx) {
+            currentSubject = catalogData[idx];
+            document.getElementById('backBtn').style.display = 'block';
+            document.getElementById('viewTitle').innerText = currentSubject.title;
+
+            const container = document.getElementById('content');
+            if (!currentSubject.books || currentSubject.books.length === 0) {
+                container.innerHTML = '<div class="loader">Учебники не найдены</div>';
+                return;
+            }
+
+            let html = '<div class="books-list">';
+            currentSubject.books.forEach((b, bIdx) => {
+                const cover = b.cover_url ? `${BACKEND_URL}${b.cover_url}` : 'https://via.placeholder.com/60x80?text=Обложка';
+                html += `
+                    <div class="book-item" onclick="openBook(${bIdx})">
+                        <img class="book-cover" src="${cover}" alt="Обложка">
+                        <div class="book-info">
+                            <div class="book-title">${b.title}</div>
+                            <div class="book-sub">${b.grade} • ${b.year}г.</div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function openBook(bIdx) {
+            currentBook = currentSubject.books[bIdx];
+            document.getElementById('backBtn').style.display = 'block';
+            document.getElementById('viewTitle').innerText = currentBook.title;
+
+            const container = document.getElementById('content');
+            if (!currentBook.tasks || currentBook.tasks.length === 0) {
+                container.innerHTML = '<div class="loader">Решений пока нет</div>';
+                return;
+            }
+
+            // Группировка: Глава -> Тип упражнения -> Список номеров
+            const chapters = {};
+            currentBook.tasks.forEach(t => {
+                const ch = t.chapter || 'Без главы';
+                const tp = t.task_type || 'Задания';
+
+                if (!chapters[ch]) chapters[ch] = {};
+                if (!chapters[ch][tp]) chapters[ch][tp] = [];
+                chapters[ch][tp].push(t);
+            });
+
+            let html = '';
+            for (const [chTitle, types] of Object.entries(chapters)) {
+                html += `<div class="chapter-title">📖 ${chTitle}</div>`;
+                for (const [tpTitle, tasks] of Object.entries(types)) {
+                    html += `<div class="type-title">📌 ${tpTitle}</div>`;
+                    html += '<div class="tasks-grid">';
+                    tasks.forEach(t => {
+                        const title = `${chTitle} -> ${tpTitle} (${t.task_number})`;
+                        const imgUrl = `${BACKEND_URL}${t.photo_url}`;
+                        html += `<button class="task-btn" onclick="openSolution('${imgUrl}', '${title}', '${t.answer_text}')">${t.task_number}</button>`;
+                    });
+                    html += '</div>';
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        function goBack() {
+            if (currentBook) {
+                openSubject(catalogData.indexOf(currentSubject));
+            } else if (currentSubject) {
+                renderSubjects();
             }
         }
 
@@ -211,7 +319,7 @@
             document.getElementById('solutionModal').style.display = 'none';
         }
 
-        loadData();
+        init();
     </script>
 </body>
 </html>

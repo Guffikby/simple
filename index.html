@@ -29,7 +29,6 @@
             padding-bottom: 24px;
         }
 
-        /* Шапка приложения */
         .header {
             display: flex;
             align-items: center;
@@ -79,7 +78,6 @@
             max-width: 250px;
         }
 
-        /* Сетка предметов */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -111,7 +109,6 @@
             font-size: 28px;
         }
 
-        /* Список учебников */
         .books-list {
             display: flex;
             flex-direction: column;
@@ -161,7 +158,6 @@
             color: var(--hint-color);
         }
 
-        /* Иерархия решений: Глава -> Параграф -> Категория -> Номера */
         .chapter-block {
             background: var(--card-bg);
             border-radius: 16px;
@@ -229,7 +225,6 @@
             transform: scale(0.95);
         }
 
-        /* Модальное окно */
         .modal {
             display: none;
             position: fixed;
@@ -318,7 +313,12 @@
         let currentSubject = null;
         let currentBook = null;
 
-        // Вспомогательная функция извлечения чисел для правильной сортировки (класс 5 -> 5, № 12 -> 12)
+        // Очистка текста от эмодзи для точной сортировки
+        function cleanText(str) {
+            if (!str) return '';
+            return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+        }
+
         function extractNum(str) {
             const match = (str || '').match(/\d+/);
             return match ? parseInt(match[0], 10) : 999;
@@ -331,11 +331,10 @@
                 renderSubjects();
             } catch (err) {
                 console.error(err);
-                document.getElementById('content').innerHTML = '<div class="loader">❌ Ошибка загрузки.<br>Проверьте подключение.</div>';
+                document.getElementById('content').innerHTML = '<div class="loader">❌ Ошибка загрузки данных.</div>';
             }
         }
 
-        // 1. ПРЕДМЕТЫ
         function renderSubjects() {
             currentSubject = null;
             currentBook = null;
@@ -354,7 +353,7 @@
                 html += `
                     <div class="subject-card" onclick="openSubject(${idx})">
                         <div class="subject-icon">📐</div>
-                        <div>${s.title}</div>
+                        <div>${cleanText(s.title)}</div>
                     </div>
                 `;
             });
@@ -362,12 +361,11 @@
             container.innerHTML = html;
         }
 
-        // 2. УЧЕБНИКИ (Сортировка по классам)
         function openSubject(idx) {
             currentSubject = catalogData[idx];
             document.getElementById('backBtn').style.display = 'flex';
             document.getElementById('headerSub').innerText = 'Предмет';
-            document.getElementById('viewTitle').innerText = currentSubject.title;
+            document.getElementById('viewTitle').innerText = cleanText(currentSubject.title);
 
             const container = document.getElementById('content');
             if (!currentSubject.books || currentSubject.books.length === 0) {
@@ -375,7 +373,6 @@
                 return;
             }
 
-            // Сортировка учебников по классам по возрастанию
             const sortedBooks = [...currentSubject.books].sort((a, b) => extractNum(a.grade) - extractNum(b.grade));
 
             let html = '<div class="books-list">';
@@ -386,8 +383,8 @@
                     <div class="book-item" onclick="openBook(${bIdx})">
                         <img class="book-cover" src="${cover}" alt="Обложка" onerror="this.src='https://via.placeholder.com/56x76?text=Обложка'">
                         <div class="book-info">
-                            <div class="book-title">${b.title}</div>
-                            <div class="book-sub">${b.grade} • ${b.year}г.</div>
+                            <div class="book-title">${cleanText(b.title)}</div>
+                            <div class="book-sub">${cleanText(b.grade)} • ${cleanText(b.year)}г.</div>
                         </div>
                     </div>
                 `;
@@ -396,12 +393,11 @@
             container.innerHTML = html;
         }
 
-        // 3. ИЕРАРХИЯ РЕШЕНИЙ (Глава -> Параграф -> Категория -> Задания)
         function openBook(bIdx) {
             currentBook = currentSubject.books[bIdx];
             document.getElementById('backBtn').style.display = 'flex';
-            document.getElementById('headerSub').innerText = currentSubject.title;
-            document.getElementById('viewTitle').innerText = currentBook.title;
+            document.getElementById('headerSub').innerText = cleanText(currentSubject.title);
+            document.getElementById('viewTitle').innerText = cleanText(currentBook.title);
 
             const container = document.getElementById('content');
             if (!currentBook.tasks || currentBook.tasks.length === 0) {
@@ -411,9 +407,9 @@
 
             const tree = {};
             currentBook.tasks.forEach(t => {
-                const ch = t.chapter || 'Раздел';
-                const p = t.paragraph || 'Параграф';
-                const cat = t.category || 'Задания';
+                const ch = cleanText(t.chapter) || 'Раздел';
+                const p = cleanText(t.paragraph) || 'Параграф';
+                const cat = cleanText(t.category) || 'Задания';
 
                 if (!tree[ch]) tree[ch] = {};
                 if (!tree[ch][p]) tree[ch][p] = {};
@@ -436,15 +432,14 @@
                         html += `<div class="category-title">📌 ${catName}</div>`;
                         html += '<div class="tasks-grid">';
                         
-                        // Сортировка номеров упражнений по возрастанию
                         const sortedTasks = [...tasks].sort((a, b) => extractNum(a.task_number) - extractNum(b.task_number));
 
                         sortedTasks.forEach(t => {
-                            const fullTitle = `${pName} • ${catName} • ${t.task_number}`;
+                            const fullTitle = `${pName} • ${catName} • ${cleanText(t.task_number)}`;
                             const imgUrl = `${BACKEND_URL}${t.photo_url}`;
                             html += `
                                 <button class="task-btn" onclick="openSolution('${imgUrl}', '${fullTitle}', '${escapeHtml(t.answer_text)}')">
-                                    ${t.task_number}
+                                    ${cleanText(t.task_number)}
                                 </button>
                             `;
                         });

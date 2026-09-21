@@ -13,7 +13,6 @@
             --button-bg: var(--tg-theme-button-color, #2481cc);
             --button-text: var(--tg-theme-button-text-color, #ffffff);
             --hint-color: var(--tg-theme-hint-color, #888888);
-            --accent-color: #2aeeaa;
         }
 
         * {
@@ -80,7 +79,7 @@
             max-width: 250px;
         }
 
-        /* Сетка предметов (Level 1) */
+        /* Сетка предметов */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -96,7 +95,7 @@
             font-size: 15px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             cursor: pointer;
-            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            transition: transform 0.1s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -112,7 +111,7 @@
             font-size: 28px;
         }
 
-        /* Список учебников (Level 2) */
+        /* Список учебников */
         .books-list {
             display: flex;
             flex-direction: column;
@@ -162,7 +161,7 @@
             color: var(--hint-color);
         }
 
-        /* 6-Уровневая Иерархия (Level 3-6) */
+        /* Иерархия решений: Глава -> Параграф -> Категория -> Номера */
         .chapter-block {
             background: var(--card-bg);
             border-radius: 16px;
@@ -176,9 +175,6 @@
             font-weight: 700;
             color: var(--button-bg);
             margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .paragraph-block {
@@ -193,9 +189,6 @@
             font-weight: 600;
             color: var(--text-color);
             margin: 10px 0 6px 0;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .category-block {
@@ -210,9 +203,6 @@
             margin: 6px 0 8px 0;
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
 
         .tasks-grid {
@@ -232,15 +222,14 @@
             cursor: pointer;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.06);
-            transition: transform 0.1s ease, opacity 0.1s ease;
+            transition: transform 0.1s ease;
         }
 
         .task-btn:active {
             transform: scale(0.95);
-            opacity: 0.9;
         }
 
-        /* Модальное окно просмотра решения */
+        /* Модальное окно */
         .modal {
             display: none;
             position: fixed;
@@ -263,7 +252,6 @@
             padding: 20px;
             text-align: center;
             position: relative;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 
         .modal-content img {
@@ -271,7 +259,6 @@
             height: auto;
             border-radius: 12px;
             margin-top: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
         .close-btn {
@@ -287,7 +274,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            line-height: 1;
         }
 
         .loader {
@@ -301,21 +287,18 @@
 </head>
 <body>
 
-    <!-- Шапка навигации -->
     <div class="header">
         <button id="backBtn" class="back-btn" onclick="goBack()">❮</button>
         <div class="header-title-container">
             <span id="headerSub" class="header-subtitle">Simple. ГДЗ</span>
-            <h2 id="viewTitle">Главная</h2>
+            <h2 id="viewTitle">Выберите предмет</h2>
         </div>
     </div>
 
-    <!-- Основной контент -->
     <div id="content">
         <div class="loader">Загрузка каталога...</div>
     </div>
 
-    <!-- Модальное окно просмотра файла решения -->
     <div id="solutionModal" class="modal" onclick="closeModalOnBackdrop(event)">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
@@ -329,14 +312,18 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Серверный хост для загрузки API и фото
         const BACKEND_URL = "https://simplegdzby.onrender.com";
 
         let catalogData = [];
         let currentSubject = null;
         let currentBook = null;
 
-        // Инициализация при старте
+        // Вспомогательная функция извлечения чисел для правильной сортировки (класс 5 -> 5, № 12 -> 12)
+        function extractNum(str) {
+            const match = (str || '').match(/\d+/);
+            return match ? parseInt(match[0], 10) : 999;
+        }
+
         async function init() {
             try {
                 const response = await fetch(`${BACKEND_URL}/api/data`);
@@ -344,11 +331,11 @@
                 renderSubjects();
             } catch (err) {
                 console.error(err);
-                document.getElementById('content').innerHTML = '<div class="loader">❌ Ошибка загрузки данных.<br>Проверьте подключение.</div>';
+                document.getElementById('content').innerHTML = '<div class="loader">❌ Ошибка загрузки.<br>Проверьте подключение.</div>';
             }
         }
 
-        // 1. Отображение списка предметов (Предметы)
+        // 1. ПРЕДМЕТЫ
         function renderSubjects() {
             currentSubject = null;
             currentBook = null;
@@ -375,7 +362,7 @@
             container.innerHTML = html;
         }
 
-        // 2. Отображение списка учебников выбранного предмета (Учебники)
+        // 2. УЧЕБНИКИ (Сортировка по классам)
         function openSubject(idx) {
             currentSubject = catalogData[idx];
             document.getElementById('backBtn').style.display = 'flex';
@@ -388,8 +375,12 @@
                 return;
             }
 
+            // Сортировка учебников по классам по возрастанию
+            const sortedBooks = [...currentSubject.books].sort((a, b) => extractNum(a.grade) - extractNum(b.grade));
+
             let html = '<div class="books-list">';
-            currentSubject.books.forEach((b, bIdx) => {
+            sortedBooks.forEach((b) => {
+                const bIdx = currentSubject.books.indexOf(b);
                 const cover = b.cover_url ? `${BACKEND_URL}${b.cover_url}` : 'https://via.placeholder.com/56x76?text=Обложка';
                 html += `
                     <div class="book-item" onclick="openBook(${bIdx})">
@@ -405,7 +396,7 @@
             container.innerHTML = html;
         }
 
-        // 3. Отображение 6-уровневой структуры решения (Глава ➔ Параграф ➔ Категория ➔ Номер)
+        // 3. ИЕРАРХИЯ РЕШЕНИЙ (Глава -> Параграф -> Категория -> Задания)
         function openBook(bIdx) {
             currentBook = currentSubject.books[bIdx];
             document.getElementById('backBtn').style.display = 'flex';
@@ -418,7 +409,6 @@
                 return;
             }
 
-            // Построение дерева: Глава -> Параграф -> Категория -> Задания
             const tree = {};
             currentBook.tasks.forEach(t => {
                 const ch = t.chapter || 'Раздел';
@@ -446,7 +436,10 @@
                         html += `<div class="category-title">📌 ${catName}</div>`;
                         html += '<div class="tasks-grid">';
                         
-                        tasks.forEach(t => {
+                        // Сортировка номеров упражнений по возрастанию
+                        const sortedTasks = [...tasks].sort((a, b) => extractNum(a.task_number) - extractNum(b.task_number));
+
+                        sortedTasks.forEach(t => {
                             const fullTitle = `${pName} • ${catName} • ${t.task_number}`;
                             const imgUrl = `${BACKEND_URL}${t.photo_url}`;
                             html += `
@@ -466,7 +459,6 @@
             container.innerHTML = html;
         }
 
-        // Навигация назад по уровню вложенности
         function goBack() {
             if (currentBook) {
                 openSubject(catalogData.indexOf(currentSubject));
@@ -475,7 +467,6 @@
             }
         }
 
-        // Открытие просмотрщика решений
         function openSolution(url, title, caption) {
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalCaption').innerText = caption || '';
@@ -483,7 +474,6 @@
             document.getElementById('solutionModal').style.display = 'flex';
         }
 
-        // Закрытие модального окна
         function closeModal() {
             document.getElementById('solutionModal').style.display = 'none';
         }
@@ -499,7 +489,6 @@
             return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
         }
 
-        // Старт работы
         init();
     </script>
 </body>

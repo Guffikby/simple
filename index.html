@@ -84,7 +84,7 @@
             gap: 12px;
         }
 
-        .subject-card {
+        .card-item {
             background-color: var(--card-bg);
             border-radius: 14px;
             padding: 20px 14px;
@@ -101,11 +101,11 @@
             gap: 8px;
         }
 
-        .subject-card:active {
+        .card-item:active {
             transform: scale(0.97);
         }
 
-        .subject-icon {
+        .card-icon {
             font-size: 28px;
         }
 
@@ -286,7 +286,7 @@
         <button id="backBtn" class="back-btn" onclick="goBack()">❮</button>
         <div class="header-title-container">
             <span id="headerSub" class="header-subtitle">Simple. ГДЗ</span>
-            <h2 id="viewTitle">Выберите предмет</h2>
+            <h2 id="viewTitle">Выберите класс</h2>
         </div>
     </div>
 
@@ -310,14 +310,9 @@
         const BACKEND_URL = "https://simplegdzby.onrender.com";
 
         let catalogData = [];
+        let currentGrade = null;
         let currentSubject = null;
         let currentBook = null;
-
-        // Очистка текста от эмодзи для точной сортировки
-        function cleanText(str) {
-            if (!str) return '';
-            return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-        }
 
         function extractNum(str) {
             const match = (str || '').match(/\d+/);
@@ -328,32 +323,44 @@
             try {
                 const response = await fetch(`${BACKEND_URL}/api/data`);
                 catalogData = await response.json();
-                renderSubjects();
+                renderGrades();
             } catch (err) {
                 console.error(err);
                 document.getElementById('content').innerHTML = '<div class="loader">❌ Ошибка загрузки данных.</div>';
             }
         }
 
-        function renderSubjects() {
+        // ШАГ 1: КЛАССЫ
+        function renderGrades() {
+            currentGrade = null;
             currentSubject = null;
             currentBook = null;
             document.getElementById('backBtn').style.display = 'none';
             document.getElementById('headerSub').innerText = 'Simple. ГДЗ';
-            document.getElementById('viewTitle').innerText = 'Выберите предмет';
+            document.getElementById('viewTitle').innerText = 'Выберите класс';
 
             const container = document.getElementById('content');
-            if (!catalogData || catalogData.length === 0) {
-                container.innerHTML = '<div class="loader">📭 Предметы пока не добавлены</div>';
+            
+            const gradesSet = new Set();
+            catalogData.forEach(s => {
+                s.books.forEach(b => {
+                    if (b.grade) gradesSet.add(b.grade);
+                });
+            });
+
+            const sortedGrades = Array.from(gradesSet).sort((a, b) => extractNum(a) - extractNum(b));
+
+            if (sortedGrades.length === 0) {
+                container.innerHTML = '<div class="loader">📭 Классы пока не добавлены</div>';
                 return;
             }
 
             let html = '<div class="grid-container">';
-            catalogData.forEach((s, idx) => {
+            sortedGrades.forEach((g) => {
                 html += `
-                    <div class="subject-card" onclick="openSubject(${idx})">
-                        <div class="subject-icon">📐</div>
-                        <div>${cleanText(s.title)}</div>
+                    <div class="card-item" onclick="openGrade('${g}')">
+                        <div class="card-icon">🎓</div>
+                        <div>${g}</div>
                     </div>
                 `;
             });
@@ -361,30 +368,60 @@
             container.innerHTML = html;
         }
 
-        function openSubject(idx) {
-            currentSubject = catalogData[idx];
+        // ШАГ 2: ПРЕДМЕТЫ В ВЫБРАННОМ КЛАССЕ
+        function openGrade(grade) {
+            currentGrade = grade;
             document.getElementById('backBtn').style.display = 'flex';
-            document.getElementById('headerSub').innerText = 'Предмет';
-            document.getElementById('viewTitle').innerText = cleanText(currentSubject.title);
+            document.getElementById('headerSub').innerText = 'Класс';
+            document.getElementById('viewTitle').innerText = currentGrade;
 
             const container = document.getElementById('content');
-            if (!currentSubject.books || currentSubject.books.length === 0) {
-                container.innerHTML = '<div class="loader">📭 Учебников в этом предмете нет</div>';
+            const subjs = catalogData.filter(s => s.books.some(b => b.grade === currentGrade));
+
+            if (subjs.length === 0) {
+                container.innerHTML = '<div class="loader">📭 Предметов для этого класса нет</div>';
                 return;
             }
 
-            const sortedBooks = [...currentSubject.books].sort((a, b) => extractNum(a.grade) - extractNum(b.grade));
+            let html = '<div class="grid-container">';
+            subjs.forEach((s) => {
+                const sIdx = catalogData.indexOf(s);
+                html += `
+                    <div class="card-item" onclick="openSubject(${sIdx})">
+                        <div class="card-icon">📐</div>
+                        <div>${s.title}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // ШАГ 3: УЧЕБНИКИ В ВЫБРАННОМ КЛАССЕ И ПРЕДМЕТЕ
+        function openSubject(sIdx) {
+            currentSubject = catalogData[sIdx];
+            document.getElementById('backBtn').style.display = 'flex';
+            document.getElementById('headerSub').innerText = `${currentGrade} • Предмет`;
+            document.getElementById('viewTitle').innerText = currentSubject.title;
+
+            const container = document.getElementById('content');
+            const targetBooks = currentSubject.books.filter(b => b.grade === currentGrade);
+
+            if (targetBooks.length === 0) {
+                container.innerHTML = '<div class="loader">📭 Учебников нет</div>';
+                return;
+            }
 
             let html = '<div class="books-list">';
-            sortedBooks.forEach((b) => {
+            targetBooks.forEach((b) => {
                 const bIdx = currentSubject.books.indexOf(b);
                 const cover = b.cover_url ? `${BACKEND_URL}${b.cover_url}` : 'https://via.placeholder.com/56x76?text=Обложка';
                 html += `
                     <div class="book-item" onclick="openBook(${bIdx})">
                         <img class="book-cover" src="${cover}" alt="Обложка" onerror="this.src='https://via.placeholder.com/56x76?text=Обложка'">
                         <div class="book-info">
-                            <div class="book-title">${cleanText(b.title)}</div>
-                            <div class="book-sub">${cleanText(b.grade)} • ${cleanText(b.year)}г.</div>
+                            <div class="book-title">${b.title}</div>
+                            <div class="book-sub">${b.grade} • ${b.year}г.</div>
                         </div>
                     </div>
                 `;
@@ -393,11 +430,12 @@
             container.innerHTML = html;
         }
 
+        // ШАГ 4: ИЕРАРХИЯ РЕШЕНИЙ
         function openBook(bIdx) {
             currentBook = currentSubject.books[bIdx];
             document.getElementById('backBtn').style.display = 'flex';
-            document.getElementById('headerSub').innerText = cleanText(currentSubject.title);
-            document.getElementById('viewTitle').innerText = cleanText(currentBook.title);
+            document.getElementById('headerSub').innerText = currentSubject.title;
+            document.getElementById('viewTitle').innerText = currentBook.title;
 
             const container = document.getElementById('content');
             if (!currentBook.tasks || currentBook.tasks.length === 0) {
@@ -407,9 +445,9 @@
 
             const tree = {};
             currentBook.tasks.forEach(t => {
-                const ch = cleanText(t.chapter) || 'Раздел';
-                const p = cleanText(t.paragraph) || 'Параграф';
-                const cat = cleanText(t.category) || 'Задания';
+                const ch = t.chapter || 'Раздел';
+                const p = t.paragraph || 'Параграф';
+                const cat = t.category || 'Задания';
 
                 if (!tree[ch]) tree[ch] = {};
                 if (!tree[ch][p]) tree[ch][p] = {};
@@ -435,11 +473,11 @@
                         const sortedTasks = [...tasks].sort((a, b) => extractNum(a.task_number) - extractNum(b.task_number));
 
                         sortedTasks.forEach(t => {
-                            const fullTitle = `${pName} • ${catName} • ${cleanText(t.task_number)}`;
+                            const fullTitle = `${pName} • ${catName} • ${t.task_number}`;
                             const imgUrl = `${BACKEND_URL}${t.photo_url}`;
                             html += `
                                 <button class="task-btn" onclick="openSolution('${imgUrl}', '${fullTitle}', '${escapeHtml(t.answer_text)}')">
-                                    ${cleanText(t.task_number)}
+                                    ${t.task_number}
                                 </button>
                             `;
                         });
@@ -458,7 +496,9 @@
             if (currentBook) {
                 openSubject(catalogData.indexOf(currentSubject));
             } else if (currentSubject) {
-                renderSubjects();
+                openGrade(currentGrade);
+            } else if (currentGrade) {
+                renderGrades();
             }
         }
 
